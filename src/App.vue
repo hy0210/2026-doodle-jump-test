@@ -8,6 +8,7 @@ const inputMode = ref<InputMode>('keyboard')
 const gyroSupported = ref<boolean>(false)
 const sensitivity = ref<number>(1.0)
 const isMobileDevice = ref<boolean>(false)
+const showOverlay = ref<boolean>(true)
 
 function checkGyroSupport() {
   if (typeof window === 'undefined') return
@@ -26,24 +27,45 @@ function detectDeviceType() {
   isMobileDevice.value = mobileRegex.test(ua)
 }
 
-function autoSelectInputMode() {
+async function handlePlayClick() {
   detectDeviceType()
   checkGyroSupport()
 
   if (isMobileDevice.value && gyroSupported.value) {
-    inputMode.value = 'gyro'
+    try {
+      const anyDeviceOrientation = DeviceOrientationEvent as any
+      if (anyDeviceOrientation?.requestPermission) {
+        const result = await anyDeviceOrientation.requestPermission()
+        if (result === 'granted') {
+          inputMode.value = 'gyro'
+        } else {
+          inputMode.value = 'keyboard'
+        }
+      } else {
+        // 非 iOS，但裝置支援陀螺儀，直接使用
+        inputMode.value = 'gyro'
+      }
+    } catch (e) {
+      console.error(e)
+      inputMode.value = 'keyboard'
+    }
   } else {
-    // 其他情況預設使用鍵盤
     inputMode.value = 'keyboard'
   }
-}
 
-autoSelectInputMode()
+  showOverlay.value = false
+}
 </script>
 
 <template>
   <div class="app-root">
     <GameCanvas :input-mode="inputMode" :sensitivity="sensitivity" />
+
+    <div v-if="showOverlay" class="overlay">
+      <button class="play-button" type="button" @click="handlePlayClick">
+        Play
+      </button>
+    </div>
   </div>
 </template>
 
@@ -65,5 +87,26 @@ autoSelectInputMode()
   border-radius: 1rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.play-button {
+  padding: 0.8rem 2rem;
+  font-size: 1.2rem;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  color: #041106;
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.6);
 }
 </style>
