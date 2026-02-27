@@ -22,7 +22,7 @@ export function createGameConfig(
     physics: {
       default: 'arcade',
       arcade: {
-        gravity: { y: 900 },
+        gravity: { x: 0, y: 900 },
         debug: false,
       },
     },
