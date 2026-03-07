@@ -1,6 +1,14 @@
+/**
+ * GameScene.ts — 主遊戲場景
+ *
+ * 用途：Phaser 的單一場景，實作跳躍遊戲核心邏輯。
+ * 負責：標題與分數 UI、平台與玩家、鍵盤/陀螺儀輸入、碰撞加分、掉出畫面重啟。
+ */
+
 import Phaser from 'phaser'
 import type { GameConfigOptions, InputMode } from '../config'
 
+/** 陀螺儀產生的水平方向輸入值 (-1 ~ 1) */
 interface HorizontalInput {
   value: number
 }
@@ -22,11 +30,13 @@ export class GameScene extends Phaser.Scene {
     this.inputOptions = options
   }
 
+  /** 場景建立：UI、平台、玩家、碰撞、陀螺儀監聽 */
   create() {
     this.cursors = this.input.keyboard!.createCursorKeys()
 
     const { width, height } = this.scale
 
+    // 標題
     this.add
       .text(width / 2, 40, 'Jump Demo', {
         fontSize: '24px',
@@ -34,6 +44,7 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
+    // 分數文字
     this.scoreText = this.add
       .text(width / 2, 70, 'Score: 0', {
         fontSize: '16px',
@@ -44,6 +55,7 @@ export class GameScene extends Phaser.Scene {
     this.platforms = this.physics.add.staticGroup()
     this.createPlatforms()
 
+    // 玩家：綠色圓形，初始向上彈跳
     this.player = this.physics.add.sprite(width / 2, height - 80, '')
     this.player.setBounce(0)
 
@@ -59,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body
     body.setVelocityY(-650)
 
+    // 玩家與平台碰撞：落地時向上彈跳，每平台只計分一次
     this.physics.add.collider(this.player, this.platforms, (_player, platform) => {
       const body = this.player.body as Phaser.Physics.Arcade.Body
 
@@ -79,6 +92,7 @@ export class GameScene extends Phaser.Scene {
     this.initGyroInput()
   }
 
+  /** 建立地面 + 數個浮空平台（藍色圓角矩形） */
   private createPlatforms() {
     const { width, height } = this.scale
 
@@ -108,6 +122,7 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  /** 監聽 deviceorientation，把傾斜 (gamma) 轉成 horizontalInput.value，供 update 使用 */
   private initGyroInput() {
     if (typeof window === 'undefined') return
 
@@ -124,16 +139,19 @@ export class GameScene extends Phaser.Scene {
     window.addEventListener('deviceorientation', this.gyroHandler)
   }
 
+  /** 從 Phaser registry 或 inputOptions 取得目前輸入模式（GameCanvas 會寫入 registry） */
   private getInputMode(): InputMode {
     const mode = this.game.registry.get('inputMode') as InputMode | undefined
     return mode ?? this.inputOptions.inputMode.value
   }
 
+  /** 從 Phaser registry 或 inputOptions 取得陀螺儀靈敏度 */
   private getSensitivity(): number {
     const fromRegistry = this.game.registry.get('sensitivity') as number | undefined
     return fromRegistry ?? this.inputOptions.sensitivity.value
   }
 
+  /** 每幀：依 inputMode 設定水平速度、左右穿牆、掉出畫面則重啟場景 */
   update() {
     const body = this.player.body as Phaser.Physics.Arcade.Body
     const speed = 260
@@ -169,6 +187,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** 場景銷毀時移除陀螺儀監聽，避免記憶體洩漏 */
   destroy(fromScene?: boolean): void {
     if (typeof window !== 'undefined' && this.gyroHandler) {
       window.removeEventListener('deviceorientation', this.gyroHandler)

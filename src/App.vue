@@ -77,14 +77,13 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    background: radial-gradient(circle at top, #222 0, #05070a 55%, #000 100%);
   }
 
   .app-root :deep(canvas) {
     max-width: 100%;
     height: auto;
     border-radius: 1rem;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+    /* box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7); */
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
 

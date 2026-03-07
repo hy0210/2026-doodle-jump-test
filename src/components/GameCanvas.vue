@@ -67,13 +67,18 @@
 
 <style scoped>
   .game-wrapper {
+    min-height: 100vh;
+    min-width: 100%;
     width: 100%;
-    max-width: 480px;
-    margin: 0 auto;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-
+  /* 遊戲容器：最大 440×788，小視窗時等比例縮小 */
   .game-container {
-    width: 100%;
-    aspect-ratio: 3 / 5;
+    width: min(440px, 100%, calc(100vh * 440 / 788));
+    height: min(788px, 100vh, calc(100vw * 788 / 440));
+    flex-shrink: 0;
   }
 </style>
