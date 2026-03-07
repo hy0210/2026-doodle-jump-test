@@ -7,6 +7,9 @@
 
 import Phaser from 'phaser'
 import type { GameConfigOptions, InputMode } from '../config'
+import { BACKGROUND_HEIGHT_PX, BACKGROUND_SECTION_COLORS } from '../constants/BACKGROUND'
+import { LEVEL_HEIGHT } from '../constants/LEVEL'
+import { generatePlatformPositions } from '../utils/generatePlatformPositions'
 
 /** 陀螺儀產生的水平方向輸入值 (-1 ~ 1) */
 interface HorizontalInput {
@@ -34,34 +37,43 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.cursors = this.input.keyboard!.createCursorKeys()
 
-    const { width, height } = this.scale
+    const { width } = this.scale
 
-    // 標題
+    // 世界與鏡頭：關卡高度由常數決定，鏡頭跟隨玩家
+    this.physics.world.setBounds(0, 0, width, LEVEL_HEIGHT)
+    this.cameras.main.setBounds(0, 0, width, LEVEL_HEIGHT)
+
+    // 三章節背景色（先畫的在最底層，由上到下：第三章→第二章→第一章）
+    this.createSectionBackgrounds(width)
+
+    // 標題（固定於鏡頭，不隨捲動）
     this.add
       .text(width / 2, 40, 'Jump Demo', {
         fontSize: '24px',
         color: '#ffffff',
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
 
-    // 分數文字
+    // 分數文字（固定於鏡頭）
     this.scoreText = this.add
       .text(width / 2, 70, 'Score: 0', {
         fontSize: '16px',
         color: '#cbd5f5',
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
 
     this.platforms = this.physics.add.staticGroup()
     this.createPlatforms()
 
-    // 玩家：綠色圓形，初始向上彈跳
-    this.player = this.physics.add.sprite(width / 2, height - 80, '')
+    // 玩家：綠色圓形，從關卡底部起跳
+    this.player = this.physics.add.sprite(width / 2, LEVEL_HEIGHT - 80, '')
     this.player.setBounce(0)
 
     const graphics = this.add.graphics()
     graphics.fillStyle(0x4ade80, 1)
-    graphics.fillCircle(0, 0, 16)
+    graphics.fillCircle(16, 16, 16)
     const textureKey = 'player-circle'
     graphics.generateTexture(textureKey, 32, 32)
     graphics.destroy()
@@ -89,37 +101,60 @@ export class GameScene extends Phaser.Scene {
       }
     })
 
+    // 鏡頭初始位置對齊玩家，之後改為手動單向跟隨（只往上）
+    this.cameras.main.scrollY = LEVEL_HEIGHT - this.scale.height
     this.initGyroInput()
   }
 
-  /** 建立地面 + 數個浮空平台（藍色圓角矩形） */
-  private createPlatforms() {
-    const { width, height } = this.scale
+  /** 依章節高度畫三塊背景色，讓轉換時一眼可見 */
+  private createSectionBackgrounds(width: number) {
+    const h = BACKGROUND_HEIGHT_PX
+    const colors = BACKGROUND_SECTION_COLORS
+    // 第一章（底部）y 最大；第三章（頂部）y 最小
+    const sectionCenters = [
+      LEVEL_HEIGHT - h / 2, // 第一章
+      LEVEL_HEIGHT - h - h / 2, // 第二章
+      LEVEL_HEIGHT - h * 2 - h / 2, // 第三章
+    ]
+    for (let i = 0; i < 3; i++) {
+      this.add.rectangle(width / 2, sectionCenters[i], width, h, colors[i]).setOrigin(0.5, 0.5)
+    }
+  }
 
+  /** 建立地面 + 程序生成的浮空平台（藍色圓角矩形） */
+  private createPlatforms() {
+    const { width } = this.scale
+
+    // 地面：關卡最底部
     this.platforms
-      .create(width / 2, height - 20, '')
+      .create(width / 2, LEVEL_HEIGHT - 20, '')
       .setScale(1.5, 0.5)
       .refreshBody()
 
-    const graphics = this.add.graphics()
-    graphics.fillStyle(0x38bdf8, 1)
-    graphics.fillRoundedRect(0, 0, 80, 16, 6)
-    const platformTextureKey = 'platform-rect'
-    graphics.generateTexture(platformTextureKey, 80, 16)
-    graphics.destroy()
+    const platformTextureKey = this.createPlatformTexture()
 
-    const positions = [
-      { x: 60, y: 460 },
-      { x: 270, y: 380 },
-      { x: 180, y: 310 },
-      { x: 80, y: 230 },
-      { x: 260, y: 160 },
-    ]
+    const positions = generatePlatformPositions({
+      width,
+      randomBetween: (min, max) => Phaser.Math.Between(min, max),
+    })
 
     positions.forEach((pos) => {
       const platform = this.platforms.create(pos.x, pos.y, platformTextureKey)
       platform.setScale(1, 1).refreshBody()
+      // 只允許從上方落地，從下方可穿越
+      ;(platform.body as Phaser.Physics.Arcade.StaticBody).checkCollision.down = false
     })
+  }
+
+  /** 產生平台用 texture（80×16 圓角矩形） */
+  private createPlatformTexture(): string {
+    const graphics = this.add.graphics()
+    graphics.fillStyle(0x38bdf8, 1)
+    graphics.fillRoundedRect(0, 0, 80, 16, 6)
+    const key = 'platform-rect'
+    graphics.generateTexture(key, 80, 16)
+    graphics.destroy()
+    return key
   }
 
   /** 監聽 deviceorientation，把傾斜 (gamma) 轉成 horizontalInput.value，供 update 使用 */
@@ -181,8 +216,15 @@ export class GameScene extends Phaser.Scene {
       this.player.x = 0
     }
 
-    const { height } = this.scale
-    if (this.player.y > height + 40) {
+    const cam = this.cameras.main
+
+    // 鏡頭只往上跟隨：玩家在畫面上半時才上移，往下掉時鏡頭不動
+    const targetScrollY = this.player.y - cam.height / 2
+    if (targetScrollY < cam.scrollY) {
+      cam.scrollY = Phaser.Math.Linear(cam.scrollY, targetScrollY, 0.1)
+    }
+
+    if (this.player.y > cam.scrollY + cam.height) {
       this.scene.restart()
     }
   }
@@ -197,4 +239,3 @@ export class GameScene extends Phaser.Scene {
     super.destroy(fromScene)
   }
 }
-

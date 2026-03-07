@@ -8,6 +8,7 @@
 import Phaser from 'phaser'
 import { GameScene } from './scenes/GameScene'
 import type { Ref } from 'vue'
+import { GRAVITY_Y } from './constants/GRAVITY'
 
 /** 輸入模式：鍵盤左右鍵 或 陀螺儀傾斜 */
 export type InputMode = 'keyboard' | 'gyro'
@@ -36,7 +37,7 @@ export function createGameConfig(
     physics: {
       default: 'arcade',
       arcade: {
-        gravity: { x: 0, y: 900 },
+        gravity: { x: 0, y: GRAVITY_Y },
         debug: false,
       },
     },
